@@ -55,6 +55,24 @@ float lr = 0.1;
 
 const int label[6] = {0, 0, 0, 1, 1, 1};
 
+
+void invoke_new_weights(const int8_t* img, float *out){
+  int i;
+  signed char *input = getInput();
+  const int8_t* image = img;
+  for (i = 0; i < IMAGE_H * IMAGE_W * 3; i++){
+	  input[i] = *image++;
+  }
+  invoke();
+  signed char *output = getOutput();
+  for (i = 0; i < INPUT_CH; i++){
+	  feat_fp[i] = (output[i] - zero_x)*scale_x;
+  }
+
+  // out = new_w @ feat + new_b
+  fully_connected_fp(feat_fp, 1, 1, INPUT_CH, OUTPUT_CH, b, w, out);
+}
+
 void train_one_img(const int8_t* img, int cls)
 {
   int i;
@@ -118,6 +136,7 @@ void train_one_feat(const float* feat, int cls)
 }
 
 
+
 int main(void)
 {
   HAL_Init();
@@ -131,12 +150,27 @@ int main(void)
 	  b[i] = new_b[i];
   uint32_t start, end;
   start = HAL_GetTick();
-  train_one_feat(feat_mcunetv3_assets_vww_noperson1_jpg, 0);
-  train_one_feat(feat_mcunetv3_assets_vww_noperson2_jpg, 0);
-  train_one_feat(feat_mcunetv3_assets_vww_noperson3_jpg, 0);
-  train_one_feat(feat_mcunetv3_assets_vww_person1_jpg, 1);
-  train_one_feat(feat_mcunetv3_assets_vww_person2_jpg, 1);
-  train_one_feat(feat_mcunetv3_assets_vww_person3_jpg, 1);
+  // int8 inference
+  train_one_img(no_person_images[0], 0);
+  train_one_img(no_person_images[1], 0);
+  train_one_img(no_person_images[2], 0);
+  train_one_img(person_images[0], 1);
+  train_one_img(person_images[1], 1);
+  train_one_img(person_images[2], 1);
+  // golden feat
+//  train_one_feat(feat_mcunetv3_assets_vww_noperson1_jpg, 0);
+//  train_one_feat(feat_mcunetv3_assets_vww_noperson2_jpg, 0);
+//  train_one_feat(feat_mcunetv3_assets_vww_noperson3_jpg, 0);
+//  train_one_feat(feat_mcunetv3_assets_vww_person1_jpg, 1);
+//  train_one_feat(feat_mcunetv3_assets_vww_person2_jpg, 1);
+//  train_one_feat(feat_mcunetv3_assets_vww_person3_jpg, 1);
+
+  // 0: no person, 1: person
+  invoke_new_weights(no_person_images[3],out);// 0.92, -0.81
+  invoke_new_weights(no_person_images[4],out);// 0.943, -1.06
+  invoke_new_weights(person_images[3],out);// -1.75, 1.18
+  invoke_new_weights(person_images[4],out);//-0.7, 0.51
+
   end = HAL_GetTick();
 
   printf("Elapse time: %d ms\n", end - start);
